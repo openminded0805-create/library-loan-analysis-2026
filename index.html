@@ -1,0 +1,2353 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2026 국립중앙도서관 인기대출도서(TOP 200) 데이터 심층 분석</title>
+  <!-- Google Fonts & Pretendard -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;600;700;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <!-- Apache ECharts 5 -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <!-- Embedded Top 200 Dataset -->
+  <script src="./data.js"></script>
+
+  <style>
+    :root {
+      --bg-parchment: #F6F2E9;
+      --bg-card: #FFFDF9;
+      --bg-card-alt: #EFE9DC;
+      --bg-forest: #163326;
+      --bg-forest-light: #204836;
+      --accent-burgundy: #8B261D;
+      --accent-burgundy-soft: #FDF2F0;
+      --accent-gold: #C28B28;
+      --accent-gold-soft: #FBF5E6;
+      --accent-teal: #246A73;
+      --text-ink: #1C1A17;
+      --text-muted: #5C5549;
+      --text-light: #8A8173;
+      --border-warm: #DCD3C2;
+      --border-gold: #D4B475;
+      --shadow-card: 0 10px 30px rgba(22, 51, 38, 0.08);
+      --shadow-hover: 0 16px 38px rgba(22, 51, 38, 0.14);
+      --font-serif: 'Noto Serif KR', Georgia, serif;
+      --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: var(--bg-parchment);
+      color: var(--text-ink);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Subtle paper grain & library grid lines */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: 
+        radial-gradient(rgba(22, 51, 38, 0.035) 1px, transparent 0),
+        linear-gradient(to right, rgba(194, 139, 40, 0.05) 1px, transparent 1px);
+      background-size: 24px 24px, 120px 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Top Archival Header Bar */
+    .top-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 54px;
+      background: rgba(246, 242, 233, 0.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border-warm);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      z-index: 100;
+    }
+
+    .brand-badge {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-serif);
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--bg-forest);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-stamp {
+      background: var(--bg-forest);
+      color: #F6F2E9;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      padding: 4px 9px;
+      border-radius: 4px;
+      letter-spacing: 0.06em;
+    }
+
+    .slide-dots {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .slide-dot {
+      width: 28px;
+      height: 26px;
+      border-radius: 5px;
+      border: 1px solid var(--border-warm);
+      background: var(--bg-card);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slide-dot:hover {
+      border-color: var(--bg-forest);
+      color: var(--bg-forest);
+      transform: translateY(-1px);
+    }
+
+    .slide-dot.active {
+      background: var(--bg-forest);
+      color: #FFFDF9;
+      border-color: var(--bg-forest);
+      box-shadow: 0 3px 10px rgba(22, 51, 38, 0.25);
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      color: var(--bg-forest);
+      padding: 6px 13px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .nav-btn:hover {
+      background: var(--bg-forest);
+      color: #FFFDF9;
+      border-color: var(--bg-forest);
+    }
+
+    /* Progress Bar */
+    .progress-track {
+      position: fixed;
+      top: 54px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: rgba(220, 211, 194, 0.5);
+      z-index: 101;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--bg-forest), var(--accent-gold), var(--accent-burgundy));
+      width: 10%;
+      transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* Slide Deck Container */
+    .deck-container {
+      position: relative;
+      width: 100vw;
+      height: calc(100vh - 57px);
+      margin-top: 57px;
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      padding: 28px 48px 32px 48px;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(24px) scale(0.99);
+      transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1), transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+
+    /* Staggered Entrance Animations inside active slide */
+    .slide .anim-item {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .slide.active .anim-item {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .slide.active .delay-1 { transition-delay: 0.08s; }
+    .slide.active .delay-2 { transition-delay: 0.16s; }
+    .slide.active .delay-3 { transition-delay: 0.24s; }
+    .slide.active .delay-4 { transition-delay: 0.32s; }
+    .slide.active .delay-5 { transition-delay: 0.40s; }
+
+    /* Slide Header Structure */
+    .slide-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      border-bottom: 2px solid var(--bg-forest);
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+      flex-shrink: 0;
+    }
+
+    .slide-kicker {
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--accent-burgundy);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .slide-title {
+      font-family: var(--font-serif);
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--bg-forest);
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+    }
+
+    .slide-subtitle {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      max-width: 520px;
+      text-align: right;
+      line-height: 1.45;
+    }
+
+    /* Grid Layouts */
+    .slide-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-height: 0;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .grid-12 {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .col-4 { grid-column: span 4; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+    .col-5 { grid-column: span 5; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+    .col-6 { grid-column: span 6; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+    .col-7 { grid-column: span 7; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+    .col-8 { grid-column: span 8; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+    .col-12 { grid-column: span 12; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+
+    /* Archival Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .card:hover {
+      box-shadow: var(--shadow-hover);
+    }
+
+    .card-accent-top {
+      border-top: 4px solid var(--bg-forest);
+    }
+
+    .card-burgundy-top {
+      border-top: 4px solid var(--accent-burgundy);
+    }
+
+    .card-gold-top {
+      border-top: 4px solid var(--accent-gold);
+    }
+
+    .card-title {
+      font-family: var(--font-serif);
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--bg-forest);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      font-family: var(--font-sans);
+    }
+
+    .badge-forest { background: rgba(22, 51, 38, 0.1); color: var(--bg-forest); }
+    .badge-burgundy { background: rgba(139, 38, 29, 0.12); color: var(--accent-burgundy); }
+    .badge-gold { background: rgba(194, 139, 40, 0.16); color: #8A5D0B; }
+
+    /* KPI Stat Row */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      border-left: 5px solid var(--bg-forest);
+      border-radius: 10px;
+      padding: 14px 18px;
+      box-shadow: var(--shadow-card);
+    }
+
+    .kpi-card.burgundy { border-left-color: var(--accent-burgundy); }
+    .kpi-card.gold { border-left-color: var(--accent-gold); }
+    .kpi-card.teal { border-left-color: var(--accent-teal); }
+
+    .kpi-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .kpi-value {
+      font-family: var(--font-mono);
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--bg-forest);
+      letter-spacing: -0.03em;
+    }
+
+    .kpi-sub {
+      font-size: 0.76rem;
+      color: var(--text-light);
+      margin-top: 4px;
+    }
+
+    /* Chart Container */
+    .chart-box {
+      width: 100%;
+      flex: 1;
+      min-height: 240px;
+    }
+
+    /* Interactive Filter Pill Group */
+    .pill-group {
+      display: inline-flex;
+      background: var(--bg-card-alt);
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid var(--border-warm);
+      gap: 4px;
+    }
+
+    .pill-btn {
+      border: none;
+      background: transparent;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .pill-btn.active {
+      background: var(--bg-forest);
+      color: #FFFDF9;
+      box-shadow: 0 2px 6px rgba(22, 51, 38, 0.2);
+    }
+
+    /* Callout / Insight Box */
+    .insight-callout {
+      background: linear-gradient(135deg, #163326 0%, #204836 100%);
+      color: #F6F2E9;
+      border-radius: 10px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      box-shadow: 0 8px 24px rgba(22, 51, 38, 0.18);
+    }
+
+    .insight-callout .icon-box {
+      background: rgba(194, 139, 40, 0.25);
+      border: 1px solid var(--accent-gold);
+      color: #F4C867;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    .insight-callout h4 {
+      font-family: var(--font-serif);
+      font-size: 0.96rem;
+      color: #F4C867;
+      margin-bottom: 4px;
+    }
+
+    .insight-callout p {
+      font-size: 0.84rem;
+      line-height: 1.5;
+      color: #EAE3D2;
+    }
+
+    /* Hero Slide 1 Specifics */
+    .hero-wrapper {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 28px;
+      height: 100%;
+      align-items: center;
+    }
+
+    .hero-left {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .archival-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-gold);
+      padding: 6px 14px;
+      border-radius: 999px;
+      width: fit-content;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--bg-forest);
+    }
+
+    .hero-main-title {
+      font-family: var(--font-serif);
+      font-size: 2.75rem;
+      font-weight: 900;
+      color: var(--bg-forest);
+      line-height: 1.22;
+      letter-spacing: -0.025em;
+    }
+
+    .hero-main-title span {
+      color: var(--accent-burgundy);
+      border-bottom: 4px solid rgba(194, 139, 40, 0.45);
+    }
+
+    .hero-desc {
+      font-size: 1.02rem;
+      line-height: 1.65;
+      color: var(--text-muted);
+    }
+
+    .hero-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 6px;
+    }
+
+    .hero-meta-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      border-top: 3px solid var(--accent-gold);
+      padding: 12px 14px;
+      border-radius: 10px;
+    }
+
+    .hero-meta-item .meta-k {
+      font-size: 0.74rem;
+      color: var(--text-light);
+      font-weight: 600;
+    }
+
+    .hero-meta-item .meta-v {
+      font-family: var(--font-serif);
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--bg-forest);
+      margin-top: 3px;
+    }
+
+    .hero-image-frame {
+      position: relative;
+      height: 100%;
+      max-height: 520px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 3px solid var(--border-gold);
+      box-shadow: 0 20px 45px rgba(22, 51, 38, 0.22);
+    }
+
+    .hero-image-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scale(1.03);
+      transition: transform 8s ease;
+    }
+
+    .slide.active .hero-image-frame img {
+      transform: scale(1);
+    }
+
+    .hero-overlay-card {
+      position: absolute;
+      bottom: 18px;
+      left: 18px;
+      right: 18px;
+      background: rgba(22, 51, 38, 0.90);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(212, 180, 117, 0.45);
+      color: #FFFDF9;
+      padding: 14px 18px;
+      border-radius: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Animated Bookshelf Visual for Slide 4 */
+    .bookshelf-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .shelf-tier {
+      background: #EAE2D1;
+      border: 1px solid #C8BC9E;
+      border-bottom: 8px solid #8C6D46;
+      border-radius: 8px;
+      padding: 12px 14px 8px 14px;
+      box-shadow: inset 0 4px 10px rgba(0,0,0,0.06);
+    }
+
+    .shelf-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .book-spines {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 6px;
+    }
+
+    .book-spine {
+      border-radius: 4px 4px 2px 2px;
+      padding: 8px 6px;
+      color: #FFFDF9;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 92px;
+      cursor: pointer;
+      transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
+      position: relative;
+      box-shadow: 2px 2px 6px rgba(0,0,0,0.15);
+    }
+
+    .book-spine:hover {
+      transform: translateY(-7px) scale(1.03);
+      box-shadow: 0 10px 18px rgba(0,0,0,0.22);
+      z-index: 5;
+    }
+
+    .book-spine.adult-lit {
+      background: linear-gradient(160deg, #1B4332 0%, #0F291E 100%);
+      border-left: 3px solid #D4AF37;
+    }
+
+    .book-spine.child-comic {
+      background: linear-gradient(160deg, #9B2C2C 0%, #681818 100%);
+      border-left: 3px solid #F6AD55;
+    }
+
+    .spine-rank {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #F4C867;
+    }
+
+    .spine-title {
+      font-weight: 700;
+      font-size: 0.76rem;
+      line-height: 1.25;
+      margin: 4px 0;
+      word-break: keep-all;
+    }
+
+    .spine-meta {
+      font-size: 0.66rem;
+      opacity: 0.85;
+      font-family: var(--font-mono);
+    }
+
+    /* Comparison Cards & List Items */
+    .stat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      background: var(--bg-parchment);
+      border-radius: 8px;
+      border: 1px solid var(--border-warm);
+      font-size: 0.84rem;
+    }
+
+    .progress-inline {
+      height: 7px;
+      background: #E2DAC9;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 5px;
+    }
+
+    .progress-inline-bar {
+      height: 100%;
+      border-radius: 999px;
+      width: 0%;
+      transition: width 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* Slide 10 Data Explorer Table */
+    .explorer-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .search-input {
+      flex: 1;
+      min-width: 220px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border-warm);
+      background: var(--bg-parchment);
+      font-family: var(--font-sans);
+      font-size: 0.84rem;
+      color: var(--text-ink);
+      outline: none;
+    }
+
+    .search-input:focus {
+      border-color: var(--bg-forest);
+      background: #FFF;
+    }
+
+    .table-wrap {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid var(--border-warm);
+      border-radius: 8px;
+      background: #FFFDF9;
+      max-height: 340px;
+    }
+
+    table.archival-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    table.archival-table thead th {
+      position: sticky;
+      top: 0;
+      background: var(--bg-forest);
+      color: #FFFDF9;
+      text-align: left;
+      padding: 9px 12px;
+      font-weight: 600;
+      z-index: 2;
+    }
+
+    table.archival-table tbody tr {
+      border-bottom: 1px solid #EFE9DC;
+      transition: background 0.15s ease;
+    }
+
+    table.archival-table tbody tr:hover {
+      background: #F5EFE2;
+    }
+
+    table.archival-table td {
+      padding: 7px 12px;
+      color: var(--text-ink);
+    }
+
+    /* Keyboard Hint Footer */
+    .footer-hint {
+      position: fixed;
+      bottom: 10px;
+      right: 24px;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-light);
+      background: rgba(255, 253, 249, 0.85);
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-warm);
+      z-index: 90;
+    }
+
+    @media (max-width: 1100px) {
+      .hero-wrapper, .grid-2, .grid-12 {
+        grid-template-columns: 1fr;
+      }
+      .col-4, .col-5, .col-6, .col-7, .col-8, .col-12 {
+        grid-column: span 1;
+      }
+      .kpi-row {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Archival Navigation Bar -->
+  <header class="top-bar">
+    <div class="brand-badge">
+      <span class="brand-stamp">ARCHIVE 2026</span>
+      <span>국립중앙도서관 장서대출 데이터 인사이트 리포트</span>
+    </div>
+
+    <div class="slide-dots" id="slideDots"></div>
+
+    <div class="nav-controls">
+      <button class="nav-btn" onclick="prevSlide()" title="이전 슬라이드 (←)">◀ 이전</button>
+      <span id="slideCounter" style="font-family: var(--font-mono); font-size: 0.78rem; font-weight: 700; min-width: 48px; text-align: center;">01 / 10</span>
+      <button class="nav-btn" onclick="nextSlide()" title="다음 슬라이드 (→)">다음 ▶</button>
+    </div>
+  </header>
+
+  <div class="progress-track">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <!-- Main Slide Deck -->
+  <main class="deck-container" id="deckContainer">
+
+    <!-- ==================== SLIDE 01: COVER ==================== -->
+    <section class="slide active" data-index="0">
+      <div class="hero-wrapper">
+        <div class="hero-left">
+          <div class="archival-tag anim-item delay-1">
+            <span>📚 NATIONAL LIBRARY OF KOREA · BIG DATA ARCHIVE</span>
+          </div>
+
+          <h1 class="hero-main-title anim-item delay-2">
+            2026 대한민국 도서관<br/>
+            <span>인기대출 데이터</span> 심층 해부
+          </h1>
+
+          <p class="hero-desc anim-item delay-3">
+            2026년 1월부터 10월까지 전국 공공도서관에서 가장 많이 대출된 상위 200권, 
+            <strong>누적 2,996,340건</strong>의 대출 기록을 전수 분석했습니다.<br/>
+            표면적인 순위표 이면에 숨겨진 <strong>‘두 개의 완전히 다른 독서 생태계’</strong>와 
+            <strong>KDC 분류의 착시 현상</strong>을 데이터 시각화로 증명합니다.
+          </p>
+
+          <div class="hero-meta-grid anim-item delay-4">
+            <div class="hero-meta-item">
+              <div class="meta-k">데이터 출처 및 범위</div>
+              <div class="meta-v">국립중앙도서관 TOP 200</div>
+            </div>
+            <div class="hero-meta-item">
+              <div class="meta-k">분석 집계 기간</div>
+              <div class="meta-v">2026.01.01 ~ 10.15</div>
+            </div>
+            <div class="hero-meta-item">
+              <div class="meta-k">누적 분석 대출량</div>
+              <div class="meta-v" style="color: var(--accent-burgundy);">2,996,340 건</div>
+            </div>
+          </div>
+
+          <div class="anim-item delay-5" style="display:flex; gap:12px; align-items:center; margin-top:4px;">
+            <button class="nav-btn" style="background:var(--bg-forest); color:#FFFDF9; padding:10px 20px; font-size:0.9rem;" onclick="nextSlide()">
+              데이터 스토리 시작하기 →
+            </button>
+            <button class="nav-btn" style="padding:10px 16px; font-size:0.86rem;" onclick="goToSlide(9)">
+              🔍 TOP 200 전체 검색 아카이브 바로가기
+            </button>
+          </div>
+        </div>
+
+        <div class="hero-image-frame anim-item delay-3">
+          <img src="./assets/library_hero.jpg" alt="Library Data Analysis Illustration" />
+          <div class="hero-overlay-card">
+            <div>
+              <div style="font-family:var(--font-mono); font-size:0.72rem; color:#F4C867;">KEY FINDING PREVIEW</div>
+              <div style="font-family:var(--font-serif); font-size:0.96rem; font-weight:700; margin-top:2px;">
+                1~8위 성인 한국소설 독점 vs 9~19위 아동 코믹북 줄세우기
+              </div>
+            </div>
+            <span class="badge badge-gold">CC-BY 4.0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 02: EXECUTIVE SUMMARY & LONG TAIL ==================== -->
+    <section class="slide" data-index="1">
+      <div class="slide-header anim-item delay-1">
+        <div>
+          <div class="slide-kicker">01 · EXECUTIVE SUMMARY & DISTRIBUTION</div>
+          <h2 class="slide-title">숫자로 보는 2026 인기대출 TOP 200의 구조적 분포</h2>
+        </div>
+        <div class="slide-subtitle">
+          상위 10권이 평균을 강하게 끌어올리는 <strong>우편향(Right-Skewed) 롱테일 구조</strong>이며,<br/>
+          200위권 진입 커트라인은 <strong>11,363건</strong>으로 치열한 롱런 경쟁이 펼쳐집니다.
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="kpi-row anim-item delay-2">
+          <div class="kpi-card">
+            <div class="kpi-label"><span>누적 총 대출건수 (TOP 200)</span><span class="badge badge-forest">TOTAL</span></div>
+            <div class="kpi-value" data-count="2996340">0</div>
+            <div class="kpi-sub">약 9.5개월간 전국 도서관 약 300만 건 대출</div>
+          </div>
+          <div class="kpi-card burgundy">
+            <div class="kpi-label"><span>전체 1위 최고 대출 기록</span><span class="badge badge-burgundy">RANK #1</span></div>
+            <div class="kpi-value" data-count="35344" style="color:var(--accent-burgundy);">0</div>
+            <div class="kpi-sub">한강 『소년이 온다』 (2014, 창비) · 노벨상 효과 지속</div>
+          </div>
+          <div class="kpi-card gold">
+            <div class="kpi-label"><span>권당 평균 vs 중앙값</span><span class="badge badge-gold">SKEWED</span></div>
+            <div class="kpi-value" data-count="14982">0</div>
+            <div class="kpi-sub">중앙값 <strong>13,825건</strong> (상위 슈퍼베스트셀러가 평균 견인)</div>
+          </div>
+          <div class="kpi-card teal">
+            <div class="kpi-label"><span>상위 25%(50권) 집중도</span><span class="badge badge-forest">PARETO</span></div>
+            <div class="kpi-value" data-count="34.2" data-suffix="%">0%</div>
+            <div class="kpi-sub">상위 50권이 총 1,025,650건 대출 창출</div>
+          </div>
+        </div>
+
+        <div class="grid-12 anim-item delay-3">
+          <div class="col-8 card card-accent-top">
+            <div class="card-title">
+              <span>📈 1위~200위 도서별 대출건수 롱테일(Long-Tail) 곡선</span>
+              <span class="badge badge-forest">마우스를 올리면 개별 도서 상세 정보가 표시됩니다</span>
+            </div>
+            <div id="chartLongTail" class="chart-box"></div>
+          </div>
+
+          <div class="col-4" style="justify-content: space-between;">
+            <div class="card card-gold-top" style="flex:1;">
+              <div class="card-title"><span>🔍 3대 구간별 변곡점 해부</span></div>
+              <div class="stat-list">
+                <div class="stat-item">
+                  <div>
+                    <strong style="color:var(--bg-forest);">① 1위 ~ 8위 (슈퍼 피크 구간)</strong>
+                    <div style="font-size:0.76rem; color:var(--text-muted);">35,344건 → 21,838건 · 전량 성인 한국소설</div>
+                  </div>
+                  <span class="badge badge-forest">성인 문학 독점</span>
+                </div>
+                <div class="stat-item">
+                  <div>
+                    <strong style="color:var(--accent-burgundy);">② 9위 ~ 19위 (시리즈 평탄 구간)</strong>
+                    <div style="font-size:0.76rem; color:var(--text-muted);">21,724건 → 20,108건 · 흔한남매 11개권 연속</div>
+                  </div>
+                  <span class="badge badge-burgundy">전권 동반 대출</span>
+                </div>
+                <div class="stat-item">
+                  <div>
+                    <strong style="color:var(--text-ink);">③ 20위 ~ 200위 (두터운 허리층)</strong>
+                    <div style="font-size:0.76rem; color:var(--text-muted);">19,959건 → 11,363건 · 학습만화 + 스테디셀러</div>
+                  </div>
+                  <span class="badge badge-gold">1.1만~1.9만 건</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="insight-callout">
+              <div class="icon-box">💡</div>
+              <div>
+                <h4>핵심 시사점: 왜 평균(14,982건)과 중앙값(13,825건)이 다를까?</h4>
+                <p>
+                  1위 『소년이 온다』(3.5만 건), 2위 『안녕이라 그랬어』(3.1만 건) 등 1~8위 성인 소설의 폭발적 단일 대출량이 상단 피크를 형성하는 반면, 50위 이후부터는 아동 학습만화 시리즈가 1.1만~1.5만 건 대에서 촘촘한 평원을 이루기 때문입니다.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 03: TWO ECOSYSTEMS ==================== -->
+    <section class="slide" data-index="2">
+      <div class="slide-header anim-item delay-1">
+        <div>
+          <div class="slide-kicker">02 · CORE DISCOVERY — DUAL ECOSYSTEM</div>
+          <h2 class="slide-title">하나의 도서관, 두 개의 완전히 다른 독서 생태계</h2>
+        </div>
+        <div class="slide-subtitle">
+          ISBN 부가기호(독자대상)와 권차(시리즈) 데이터를 교차 분석하면,<br/>
+          도서관 대출 시장은 작동 법칙이 정반대인 <strong>‘성인 단행본 시장’</strong>과 <strong>‘아동 다권본 시장’</strong>으로 양분됩니다.
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-12 anim-item delay-2">
+          <div class="col-5 card card-accent-top" style="padding:14px;">
+            <div style="border-radius:10px; overflow:hidden; height:210px; border:1px solid var(--border-warm); margin-bottom:12px;">
+              <img src="./assets/dual_ecosystem.jpg" alt="Dual Ecosystem Illustration" style="width:100%; height:100%; object-fit:cover;" />
+            </div>
+            <div id="chartDualDonut" class="chart-box" style="min-height:190px;"></div>
+          </div>
+
+          <div class="col-7" style="justify-content: space-between;">
+            <div class="grid-2" style="flex:1;">
+              <!-- Adult Ecosystem Card -->
+              <div class="card card-accent-top">
+                <div class="card-title">
+                  <span>🏛️ 일반성인 교양 생태계</span>
+                  <span class="badge badge-forest">62권 (31.0%)</span>
+                </div>
+                <div style="font-family:var(--font-mono); font-size:1.55rem; font-weight:700; color:var(--bg-forest); margin-bottom:4px;">
+                  987,580 건 <span style="font-size:0.85rem; font-weight:500; color:var(--text-muted);">(33.0%)</span>
+                </div>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">
+                  권당 평균 대출 <strong>15,929건</strong>으로 개별 도서의 파급력이 가장 높음
+                </p>
+
+                <div class="stat-list">
+                  <div class="stat-item">
+                    <span><strong>단행본 비율</strong> (단권 완결)</span>
+                    <strong style="color:var(--bg-forest); font-family:var(--font-mono);">98.4% (61/62권)</strong>
+                  </div>
+                  <div class="stat-item">
+                    <span><strong>최상위권 장악력</strong></span>
+                    <strong style="color:var(--bg-forest);">전체 1위 ~ 8위 싹쓸이</strong>
+                  </div>
+                  <div class="stat-item">
+                    <span><strong>핵심 장르 구성</strong></span>
+                    <span>문학 80.6% (50권) · 비문학 19.4%</span>
+                  </div>
+                  <div class="stat-item">
+                    <span><strong>주요 대출 동력</strong></span>
+                    <span>문학상 수상 · 작가 팬덤 · 신간 화제성</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Child Ecosystem Card -->
+              <div class="card card-burgundy-top">
+                <div class="card-title">
+                  <span>🎈 아동/초등 생태계</span>
+                  <span class="badge badge-burgundy">132권 (66.0%)</span>
+                </div>
+                <div style="font-family:var(--font-mono); font-size:1.55rem; font-weight:700; color:var(--accent-burgundy); margin-bottom:4px;">
+                  1,926,631 건 <span style="font-size:0.85rem; font-weight:500; color:var(--text-muted);">(64.3%)</span>
+                </div>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">
+                  권당 평균 대출 <strong>14,596건</strong> · 시리즈 전권 연쇄 대출로 총량 압도
+                </p>
+
+                <div class="stat-list">
+                  <div class="stat-item">
+                    <span><strong>다권본 시리즈 비율</strong></span>
+                    <strong style="color:var(--accent-burgundy); font-family:var(--font-mono);">96.2% (127/132권)</strong>
+                  </div>
+                  <div class="stat-item">
+                    <span><strong>순위 분포 특징</strong></span>
+                    <strong style="color:var(--accent-burgundy);">9위~19위 연속 줄세우기</strong>
+                  </div>
+                  <div class="stat-item">
+                    <span><strong>핵심 장르 구성</strong></span>
+                    <span>학습만화/코믹 81.1% · 창작동화 18.9%</span>
+                  </div>
+                  <div class="stat-item">
+                    <span><strong>주요 대출 동력</strong></span>
+                    <span>유튜브 크리에이터 IP · 1권~N권 정주행</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="insight-callout">
+              <div class="icon-box">⚖️</div>
+              <div>
+                <h4>구조적 대조: ‘한 권의 깊은 몰입(성인)’ vs ‘시리즈 전권 정주행(어린이)’</h4>
+                <p>
+                  성인 도서는 62권 중 『불편한 편의점 2』 단 1권을 제외한 <strong>61권(98.4%)이 독립 단행본</strong>인 반면, 아동 도서는 『긴긴밤』·『수박 수영장』 등 그림책 5권을 제외한 <strong>127권(96.2%)이 다권본 시리즈물</strong>입니다. 청소년 도서는 6권(82,129건, 2.7%)으로 이꽃님·유은실·김선미 작가의 성장소설이 자리 잡고 있습니다.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 04: TOP 20 BOOKSHELF ANATOMY ==================== -->
+    <section class="slide" data-index="3">
+      <div class="slide-header anim-item delay-1">
+        <div>
+          <div class="slide-kicker">03 · TOP 20 BOOKSHELF ANATOMY</div>
+          <h2 class="slide-title">최상위 20위 서가 지형도: 1~8위 한국소설 vs 9~19위 흔한남매</h2>
+        </div>
+        <div class="slide-subtitle">
+          1위부터 8위까지는 성인 한국 현대소설이 한 권도 빠짐없이 독점했고,<br/>
+          곧바로 <strong>9위부터 19위까지 11개 순위는 『흔한남매』 시리즈가 벽돌처럼 줄세우기</strong>를 기록했습니다.
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="bookshelf-container anim-item delay-2">
+          <!-- Shelf 1: Ranks 1 to 10 -->
+          <div class="shelf-tier">
+            <div class="shelf-label">
+              <span style="color:var(--bg-forest);">📚 상단 서가 (1위 ~ 10위) — 한국 현대문학의 황금기 (1~8위) & 흔한남매의 시작 (9~10위)</span>
+              <span class="badge badge-forest">■ 짙은 녹색: 성인 한국소설 / ■ 버건디: 아동 코믹북</span>
+            </div>
+            <div class="book-spines" id="shelfTop10"></div>
+          </div>
+
+          <!-- Shelf 2: Ranks 11 to 20 -->
+          <div class="shelf-tier">
+            <div class="shelf-label">
+              <span style="color:var(--accent-burgundy);">📚 하단 서가 (11위 ~ 20위) — 『흔한남매』 9개 권차 연속 진입 (11~19위) & 인디 뮤지션 한로로의 소설 (20위)</span>
+              <span style="font-size:0.75rem; color:var(--text-muted);">각 책등에 마우스를 올리면 상세 대출건수를 확인할 수 있습니다</span>
+            </div>
+            <div class="book-spines" id="shelfNext10"></div>
+          </div>
+        </div>
+
+        <div class="grid-2 anim-item delay-3" style="flex:0.85;">
+          <div class="card card-accent-top">
+            <div class="card-title">
+              <span>🏆 TOP 20 대출건수 정밀 비교 차트</span>
+              <span class="badge badge-gold">단위: 건</span>
+            </div>
+            <div id="chartTop20Bar" class="chart-box" style="min-height:175px;"></div>
+          </div>
+
+          <div class="card card-gold-top" style="justify-content:space-between;">
+            <div class="card-title"><span>📌 TOP 20 서가에서 읽어야 할 3가지 디테일</span></div>
+            <div class="stat-list">
+              <div class="stat-item">
+                <div>
+                  <strong>1. 노벨문학상 수상 이후에도 식지 않는 한강 신드롬</strong>
+                  <div style="font-size:0.77rem; color:var(--text-muted);">『소년이 온다』(1위, 35,344건)와 『작별하지 않는다』(5위, 25,837건)가 나란히 최상위권 수성</div>
+                </div>
+              </div>
+              <div class="stat-item">
+                <div>
+                  <strong>2. 2025년 신작 한국소설의 폭발적 도서관 유입</strong>
+                  <div style="font-size:0.77rem; color:var(--text-muted);">김애란 『안녕이라 그랬어』(2위), 성해나 『혼모노』(3위), 구병모 『절창』(7위) 등 2025년 신간 강세</div>
+                </div>
+              </div>
+              <div class="stat-item">
+                <div>
+                  <strong>3. 『흔한남매』 9위~19위 권차 간 대출 편차는 불과 7.4%</strong>
+                  <div style="font-size:0.77rem; color:var(--text-muted);">9위(21,724건)부터 19위(20,108건)까지 거의 동일한 횟수로 세트로 빌려가는 패턴 입증</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 05: KDC ILLUSION ==================== -->
+    <section class="slide" data-index="4">
+      <div class="slide-header anim-item delay-1">
+        <div>
+          <div class="slide-kicker">04 · THE KDC CLASSIFICATION ILLUSION</div>
+          <h2 class="slide-title">“자연과학 대출이 24.8%?” — KDC 주제 분류에 숨겨진 착시 해부</h2>
+        </div>
+        <div class="slide-subtitle">
+          표면적인 KDC 대분류 통계만 보면 자연과학(400)과 역사(900)가 활발히 읽히는 듯 보이지만,<br/>
+          <strong>독자 세그먼트로 분해하면 98% 이상이 아동 학습만화</strong>라는 결정적 사실이 드러납니다.
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-12 anim-item delay-2">
+          <div class="col-7 card card-accent-top">
+            <div class="card-title">
+              <span>🔬 KDC 주제 분류별 대출 구조 (버튼을 클릭해 뷰를 전환해보세요)</span>
+              <div class="pill-group">
+                <button class="pill-btn active" id="btnKdcSplit" onclick="switchKdcView('split')">실제 독자별 해부 (성인 vs 아동)</button>
+                <button class="pill-btn" id="btnKdcSurface" onclick="switchKdcView('surface')">표면적 KDC 합계 (착시 뷰)</button>
+              </div>
+            </div>
+            <div id="chartKdcIllusion" class="chart-box"></div>
+          </div>
+
+          <div class="col-5" style="justify-content:space-between;">
+            <div class="card card-burgundy-top">
+              <div class="card-title">
+                <span>⚠️ 데이터 분석가가 발견한 4대 분류 착시</span>
+                <span class="badge badge-burgundy">FACT CHECK</span>
+              </div>
+              <div class="stat-list">
+                <div class="stat-item" style="border-left:4px solid var(--accent-burgundy);">
+                  <div>
+                    <strong>착시 ① : 400 자연과학 (총 54권, 74.4만 건)</strong>
+                    <div style="font-size:0.77rem; color:var(--text-muted); margin-top:2px;">
+                      • <strong>아동 학습만화: 53권 (98.1%)</strong> — 흔한남매 호기심/과학탐험대, 에그박사, 슈뻘맨 등<br/>
+                      • <strong>성인 자연과학: 단 1권 (1.9%)</strong> — 룰루 밀러 『물고기는 존재하지 않는다』(169위)
+                    </div>
+                  </div>
+                </div>
+
+                <div class="stat-item" style="border-left:4px solid var(--accent-gold);">
+                  <div>
+                    <strong>착시 ② : 900 역사 (총 9권, 10.8만 건)</strong>
+                    <div style="font-size:0.77rem; color:var(--text-muted); margin-top:2px;">
+                      • <strong>아동 역사만화: 8권 (88.9%)</strong> — 설민석 한국사 대모험(4권), 흔한남매 세계여행/세계사(4권)<br/>
+                      • <strong>성인 역사서: 단 1권 (11.1%)</strong> — 최태성 『최소한의 삼국지』(184위)
+                    </div>
+                  </div>
+                </div>
+
+                <div class="stat-item" style="border-left:4px solid var(--bg-forest);">
+                  <div>
+                    <strong>착시 ③ : 600 예술 (총 5권, 6.0만 건)</strong>
+                    <div style="font-size:0.77rem; color:var(--text-muted); margin-top:2px;">
+                      • 미술·음악 교양서가 아니라 <strong>100% 『(흔한남매) 별난 방탈출』 1~5권</strong> (KDC 691 오락/퍼즐 분류)
+                    </div>
+                  </div>
+                </div>
+
+                <div class="stat-item" style="border-left:4px solid #6B7280;">
+                  <div>
+                    <strong>착시 ④ : TOP 200 진입 0권 분야 (불모지)</strong>
+                    <div style="font-size:0.77rem; color:var(--text-muted); margin-top:2px;">
+                      • <strong>000 총류, 200 종교, 700 언어</strong> 분야는 상위 200위 내 진입 도서가 <strong>단 1권도 없음(0권)</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="insight-callout">
+              <div class="icon-box">🎯</div>
+              <div>
+                <h4>설득 포인트: KDC 코드만 보고 도서관 이용 행태를 판단하면 안 되는 이유</h4>
+                <p>
+                  단순히 KDC 대분류 집계표만 보면 “자연과학 도서 대출이 전체의 1/4에 달한다”고 오판하게 됩니다. 반드시 <strong>ISBN 부가기호(독자대상)를 결합한 다차원 교차 분석</strong>을 수행해야 실제 도서관 이용자의 독서 실체를 파악할 수 있습니다.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 06: CHILDREN'S ECOSYSTEM ==================== -->
+    <section class="slide" data-index="5">
+      <div class="slide-header anim-item delay-1">
+        <div>
+          <div class="slide-kicker">05 · CHILDREN'S LOAN ECOSYSTEM</div>
+          <h2 class="slide-title">아동 생태계 해부: 유튜브 크리에이터 IP의 독점과 창작동화의 분투</h2>
+        </div>
+        <div class="slide-subtitle">
+          유튜브 크리에이터 원작 도서 <strong>107권이 전체 도서관 TOP 200 대출의 52.8%(158만 건)</strong>를 차지하며,<br/>
+          특히 <strong>『흔한남매』 단일 IP는 12개 파생 시리즈로 총 78권(40.8%)</strong>을 진입시켰습니다.
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-12 anim-item delay-2">
+          <div class="col-7 card card-burgundy-top">
+            <div class="card-title">
+              <span>🧩 아동/초등 132권 IP 생태계 구조 (유튜브 IP vs 한국 창작동화)</span>
+              <span class="badge badge-burgundy">총 1,926,631건 (132권)</span>
+            </div>
+            <div id="chartChildTreemap" class="chart-box"></div>
+          </div>
+
+          <div class="col-5" style="justify-content:space-between;">
+            <div class="card card-accent-top">
+              <div class="card-title">
+                <span>👑 『흔한남매』 단일 IP의 무한 확장 (78권 · 122.2만 건)</span>
+                <span class="badge badge-gold">점유율 40.8%</span>
+              </div>
+              <p style="font-size:0.79rem; color:var(--text-muted); margin-bottom:10px;">
+                단순 코믹북을 넘어 <strong>과학·고전·방탈출·사회·역사</strong> 등 전 교과 영역으로 스핀오프하며 도서관 서가를 장악했습니다.
+              </p>
+              <div class="stat-list">
+                <div class="stat-item">
+                  <span>① <strong>흔한남매 (본편 코믹북)</strong> · 미래엔</span>
+                  <strong style="font-family:var(--font-mono); color:var(--accent-burgundy);">21권 (420,357건)</strong>
+                </div>
+                <div class="stat-item">
+                  <span>② <strong>흔한남매 과학 탐험대</strong> · 김영사/주니어김영사</span>
+                  <strong style="font-family:var(--font-mono); color:var(--accent-burgundy);">17권 (234,999건)</strong>
+                </div>
+                <div class="stat-item">
+                  <span>③ <strong>흔한남매의 흔한 호기심</strong> · 미래엔</span>
+                  <strong style="font-family:var(--font-mono); color:var(--accent-burgundy);">13권 (210,060건)</strong>
+                </div>
+                <div class="stat-item">
+                  <span>④ <strong>이상한 나라의 고전 읽기(7권) / 방탈출(5권)</strong></span>
+                  <strong style="font-family:var(--font-mono);">12권 (164,799건)</strong>
+                </div>
+                <div class="stat-item">
+                  <span>⑤ <strong>수수께끼(4)·이무기(3)·세계여행(3)·일기(2) 외</strong></span>
+                  <strong style="font-family:var(--font-mono);">15권 (191,404건)</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="card card-gold-top">
+              <div class="card-title">
+                <span>🌱 비(非)유튜브 순수 아동 창작동화의 자존심 (25권)</span>
+                <span class="badge badge-forest">343,856건</span>
+              </div>
+              <div class="stat-list">
+                <div class="stat-item">
+                  <span>🐱 <strong>홍민정 『고양이 해결사 깜냥』</strong> (창비, 1~8권 전권 진입)</span>
+                  <strong style="color:var(--bg-forest); font-family:var(--font-mono);">8권 · 120,238건</strong>
+                </div>
+                <div class="stat-item">
+                  <span>👵 <strong>강효미 『똥볶이 할멈』</strong> (7권) + <strong>『다판다 편의점』</strong> (2권)</span>
+                  <strong style="color:var(--bg-forest); font-family:var(--font-mono);">9권 · 118,428건</strong>
+                </div>
+                <div class="stat-item">
+                  <span>🌙 <strong>루리 『긴긴밤』</strong>(46위) · <strong>안녕달 『수박 수영장』</strong>(111위)</span>
+                  <span class="badge badge-gold">명작 단행본</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 07: ADULT & TEEN ECOSYSTEM ==================== -->
+    <section class="slide" data-index="6">
+      <div class="slide-header anim-item delay-1">
+        <div>
+          <div class="slide-kicker">06 · ADULT & TEENAGER READING TRENDS</div>
+          <h2 class="slide-title">성인·청소년 생태계: 한국 현대문학의 르네상스와 3대 비문학 키워드</h2>
+        </div>
+        <div class="slide-subtitle">
+          성인·청소년 도서 68권 중 <strong>56권(82.4%)이 문학</strong>이며, 신뢰받는 작가의 신간과 구작이 동반 대출됩니다.<br/>
+          바늘구멍을 뚫고 진입한 <strong>성인 비문학 12권</strong>은 현대인의 불안과 열망을 명확히 투영합니다.
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-12 anim-item delay-2">
+          <div class="col-6 card card-accent-top">
+            <div class="card-title">
+              <span>✍️ 성인·청소년 문학 다관왕(Multi-Hit) 작가 TOP 10</span>
+              <span class="badge badge-forest">총 대출건수 및 진입 권수</span>
+            </div>
+            <div id="chartAdultAuthors" class="chart-box"></div>
+          </div>
+
+          <div class="col-6" style="justify-content:space-between;">
+            <div class="card card-gold-top" style="flex:1;">
+              <div class="card-title">
+                <span>🧭 바늘구멍을 뚫은 성인 비문학(12권)의 3대 핵심 트렌드</span>
+                <span class="badge badge-gold">비문학 12권 전수 분류</span>
+              </div>
+
+              <div class="stat-list" style="gap:11px;">
+                <div class="stat-item" style="flex-direction:column; align-items:flex-start; gap:4px; border-left:4px solid var(--bg-forest);">
+                  <div style="display:flex; justify-content:space-between; width:100%;">
+                    <strong style="color:var(--bg-forest);">트렌드 ① [노후 대비 · 자산 심리와 저소비] — 경제/재테크 (4권)</strong>
+                    <span class="badge badge-forest">58,360건</span>
+                  </div>
+                  <div style="font-size:0.78rem; color:var(--text-muted); line-height:1.45;">
+                    • <strong>『박곰희 연금 부자 수업』</strong>(39위, 17,339건) · <strong>『돈의 심리학』</strong>(77위, 14,647건)<br/>
+                    • <strong>『돈의 속성』</strong>(102위, 13,823건) · <strong>『저소비 생활』</strong>(143위, 12,551건)<br/>
+                    👉 <em>공격적 투기보다 연금 설계, 지출 통제, 돈에 대한 철학적 태도에 집중</em>
+                  </div>
+                </div>
+
+                <div class="stat-item" style="flex-direction:column; align-items:flex-start; gap:4px; border-left:4px solid var(--accent-burgundy);">
+                  <div style="display:flex; justify-content:space-between; width:100%;">
+                    <strong style="color:var(--accent-burgundy);">트렌드 ② [실존 철학과 내면 주체성 회복] — 철학/심리 (5권)</strong>
+                    <span class="badge badge-burgundy">66,254건</span>
+                  </div>
+                  <div style="font-size:0.78rem; color:var(--text-muted); line-height:1.45;">
+                    • 니체 <strong>『위버멘쉬』</strong>(73위, 14,856건) · <strong>『아주 작은 습관의 힘』</strong>(101위, 13,849건)<br/>
+                    • <strong>『마흔에 읽는 쇼펜하우어』</strong>(113위) · 멜 로빈스 <strong>『렛뎀 이론』</strong>(149위) · <strong>『다크 심리학』</strong>(185위)<br/>
+                    👉 <em>타인의 시선에 휘둘리지 않고(‘Let Them’) 내면의 주체성을 지키는 철학·심리 열풍</em>
+                  </div>
+                </div>
+
+                <div class="stat-item" style="flex-direction:column; align-items:flex-start; gap:4px; border-left:4px solid var(--accent-gold);">
+                  <div style="display:flex; justify-content:space-between; width:100%;">
+                    <strong style="color:#8A5D0B;">트렌드 ③ [삶의 본질을 묻는 과학·역사 교양] — 인문/교양 (3권)</strong>
+                    <span class="badge badge-gold">35,967건</span>
+                  </div>
+                  <div style="font-size:0.78rem; color:var(--text-muted); line-height:1.45;">
+                    • 마이클 이스터 <strong>『편안함의 습격』</strong>(156위, 12,272건) · 룰루 밀러 <strong>『물고기는 존재하지 않는다』</strong>(169위, 11,967건) · 최태성 <strong>『최소한의 삼국지』</strong>(184위, 11,728건)
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="insight-callout">
+              <div class="icon-box">🌟</div>
+              <div>
+                <h4>주목할 만한 현상: ‘이꽃님 작가(6권 진입)’와 ‘한로로 『자몽살구클럽』(20위)’</h4>
+                <p>
+                  청소년 문학의 아이돌 <strong>이꽃님 작가</strong>는 『죽이고 싶은 아이 1·2』, 『세계를 건너 너에게 갈게』 등 무려 6권을 TOP 200에 올렸으며, 인디 싱어송라이터 <strong>한로로(HANRORO)</strong>의 소설 『자몽살구클럽』은 KDC 미분류 상태에서도 전체 20위(19,959건)에 오르는 기염을 토했습니다.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 08: PUBLICATION YEAR & DATA LITERACY ==================== -->
+    <section class="slide" data-index="7">
+      <div class="slide-header anim-item delay-1">
+        <div>
+          <div class="slide-kicker">07 · PUBLICATION VINTAGE & DATA LITERACY</div>
+          <h2 class="slide-title">출판년도 시계열 분석: 성인의 신간 민감도 vs 다권본 서지 데이터의 비밀</h2>
+        </div>
+        <div class="slide-subtitle">
+          성인 독자는 <strong>2025~2026년 신간(35.5%)</strong>과 <strong>10년 이상 된 명작 스테디셀러(12.9%)</strong>를 동시에 소비합니다.<br/>
+          반면 2019~2021년 구간이 53%(106권)로 치솟은 이유는 <strong>도서관 서지 DB의 등록 특성</strong>에 있습니다.
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-12 anim-item delay-2">
+          <div class="col-7 card card-accent-top">
+            <div class="card-title">
+              <span>⏳ 출판년도별 진입 도서 수 및 독자 세그먼트 구성 (2007 ~ 2026)</span>
+              <span class="badge badge-forest">연도별 스택 바 차트</span>
+            </div>
+            <div id="chartYearVintage" class="chart-box"></div>
+          </div>
+
+          <div class="col-5" style="justify-content:space-between;">
+            <div class="card card-gold-top">
+              <div class="card-title">
+                <span>🕰️ 10년 이상 시간을 이겨낸 역주행 스테디셀러</span>
+                <span class="badge badge-gold">LONG-SELLER</span>
+              </div>
+              <div class="stat-list">
+                <div class="stat-item">
+                  <span><strong>2007년 / 2022년</strong> · 한강 『채식주의자』 (구판·개정판 동시 진입)</span>
+                  <strong style="font-family:var(--font-mono); color:var(--bg-forest);">36위 · 145위</strong>
+                </div>
+                <div class="stat-item">
+                  <span><strong>2012년</strong> · 히가시노 게이고 『나미야 잡화점의 기적』 (현대문학)</span>
+                  <strong style="font-family:var(--font-mono); color:var(--bg-forest);">117위 (13,276건)</strong>
+                </div>
+                <div class="stat-item">
+                  <span><strong>2013년</strong> · 양귀자 『모순』 (쓰다) — 2030 세대 입소문 역주행</span>
+                  <strong style="font-family:var(--font-mono); color:var(--accent-burgundy);">4위 (25,962건)</strong>
+                </div>
+                <div class="stat-item">
+                  <span><strong>2014년</strong> · 한강 『소년이 온다』 (창비) — 출간 12년 만에 전체 1위</span>
+                  <strong style="font-family:var(--font-mono); color:var(--accent-burgundy);">1위 (35,344건)</strong>
+                </div>
+                <div class="stat-item">
+                  <span><strong>2015년</strong> · 안녕달 『수박 수영장』 (창비) — 여름 그림책 고전</span>
+                  <strong style="font-family:var(--font-mono); color:var(--bg-forest);">111위 (13,493건)</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="insight-callout" style="background:linear-gradient(135deg, #5A1E18 0%, #8B261D 100%);">
+              <div class="icon-box" style="border-color:#F6AD55; color:#F6AD55;">🔍</div>
+              <div>
+                <h4 style="color:#F6AD55;">[Data Literacy] 왜 2019~2021년 출판 도서가 106권(53%)이나 될까?</h4>
+                <p>
+                  데이터를 검증한 결과, 『흔한남매 1~21권』의 출판년도가 모두 <code>2019</code>로, 『에그박사 1~17권』이 모두 <code>2020</code>으로, 『깜냥 1~8권』이 모두 <code>2020</code>으로 기재되어 있습니다. 이는 국립중앙도서관 다권본 서지 시스템에서 <strong>시리즈 1권(초판)의 발행년도가 후속 신간 권차에도 대표 발행년도로 일괄 매핑</strong>되기 때문입니다. 이 메타데이터 특성을 이해해야 시계열 왜곡에 빠지지 않습니다!
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 09: PUBLISHER MARKET SHARE ==================== -->
+    <section class="slide" data-index="8">
+      <div class="slide-header anim-item delay-1">
+        <div>
+          <div class="slide-kicker">08 · PUBLISHER ECOSYSTEM & MARKET SHARE</div>
+          <h2 class="slide-title">출판사 지형도: 4대 출판사(65.6%)의 과점과 ‘다량 진입 vs 고효율 타격’</h2>
+        </div>
+        <div class="slide-subtitle">
+          총 39개 출판사가 TOP 200에 진입했으나, <strong>미래엔·창비·김영사·문학동네 상위 4개사가 전체 대출의 67.3%</strong>를 점유합니다.<br/>
+          출판사마다 <strong>시리즈 물량전(미래엔)</strong>과 <strong>단행본 고타율 전략(문학동네·나무옆의자)</strong>이 뚜렷하게 갈립니다.
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-12 anim-item delay-2">
+          <div class="col-7 card card-accent-top">
+            <div class="card-title">
+              <span>🏢 주요 출판사별 총 대출건수 vs 권당 평균 대출건수 비교</span>
+              <span class="badge badge-forest">막대: 총 대출합계 / 선: 권당 평균 대출</span>
+            </div>
+            <div id="chartPublishers" class="chart-box"></div>
+          </div>
+
+          <div class="col-5" style="justify-content:space-between;">
+            <div class="card card-accent-top">
+              <div class="card-title">
+                <span>📊 출판사 유형별 3대 포지셔닝 그룹</span>
+                <span class="badge badge-gold">총 39개 출판사</span>
+              </div>
+              <div class="stat-list">
+                <div class="stat-item" style="flex-direction:column; align-items:flex-start; gap:3px;">
+                  <div style="display:flex; justify-content:space-between; width:100%;">
+                    <strong style="color:var(--accent-burgundy);">① 아동 IP 메가 퍼블리셔 : 미래엔 (82권, 41.8%)</strong>
+                    <span class="badge badge-burgundy">1,252,859건</span>
+                  </div>
+                  <div style="font-size:0.77rem; color:var(--text-muted);">
+                    흔한남매(60권)·에그박사(16권)·슈뻘맨(6권) 보유. 단일 출판사가 TOP 200의 41%를 차지하는 압도적 1위. 김영사+주니어김영사(18권, 24.6만 건)가 과학 탐험대로 3위 차지.
+                  </div>
+                </div>
+
+                <div class="stat-item" style="flex-direction:column; align-items:flex-start; gap:3px;">
+                  <div style="display:flex; justify-content:space-between; width:100%;">
+                    <strong style="color:var(--bg-forest);">② 문학 명가 & 고타율 강자 : 창비(18권) · 문학동네(12권)</strong>
+                    <span class="badge badge-forest">권당 1.6만~1.8만</span>
+                  </div>
+                  <div style="font-size:0.77rem; color:var(--text-muted);">
+                    • <strong>창비(29.7만 건)</strong>: 성인문학(한강·성해나·황석영) + 아동동화(깜냥 8권) 양 날개 구축<br/>
+                    • <strong>문학동네(22.0만 건)</strong>: 권당 평균 <strong>18,338건</strong>으로 메이저 출판사 중 개별 도서 파괴력 1위
+                  </div>
+                </div>
+
+                <div class="stat-item" style="flex-direction:column; align-items:flex-start; gap:3px;">
+                  <div style="display:flex; justify-content:space-between; width:100%;">
+                    <strong style="color:#8A5D0B;">③ 원히트/원작가 부티크 강자 : 쓰다 · 나무옆의자 · 따끈따끈책방</strong>
+                    <span class="badge badge-gold">강소 출판사</span>
+                  </div>
+                  <div style="font-size:0.77rem; color:var(--text-muted);">
+                    • <strong>쓰다</strong>: 양귀자 『모순』·『나는 소망한다…』 2권으로 평균 <strong>19,358건</strong> 기록<br/>
+                    • <strong>나무옆의자</strong>: 김호연 작가 3권으로 평균 <strong>18,304건</strong> / <strong>따끈따끈책방</strong>: 『똥볶이 할멈』 7권 진입
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="insight-callout">
+              <div class="icon-box">🏛️</div>
+              <div>
+                <h4>도서관 대출 생태계의 다양성 지표</h4>
+                <p>
+                  상위 4개 출판사가 65.6%(130권)를 차지하는 과점 구조 속에서도, 1~2권의 단행본으로 진입한 <strong>독립·중소 출판사(무제, 어센틱, 복복서가, 클레이하우스 등)가 29곳</strong>에 달해 성인 문학·교양 영역에서는 출판사 규모보다 작품 자체의 입소문이 결정적임을 보여줍니다.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 10: SYNTHESIS & INTERACTIVE EXPLORER ==================== -->
+    <section class="slide" data-index="9">
+      <div class="slide-header anim-item delay-1">
+        <div>
+          <div class="slide-kicker">09 · KEY TAKEAWAYS & LIVE ARCHIVE EXPLORER</div>
+          <h2 class="slide-title">5대 핵심 인사이트 종합 및 TOP 200 인터랙티브 데이터 아카이브</h2>
+        </div>
+        <div class="slide-subtitle">
+          발표 내용을 5가지 핵심 명제로 요약했으며,<br/>
+          우측 아카이브에서 <strong>200권 전체 데이터를 실시간 검색·필터링</strong>하며 질의응답에 활용할 수 있습니다.
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-12 anim-item delay-2">
+          <!-- Left: 5 Core Takeaways -->
+          <div class="col-5" style="justify-content:space-between;">
+            <div class="card card-accent-top" style="flex:1; justify-content:space-between;">
+              <div class="card-title">
+                <span>📌 우리가 기억해야 할 5대 데이터 인사이트</span>
+                <span class="badge badge-forest">CONCLUSION</span>
+              </div>
+
+              <div class="stat-list" style="gap:8px;">
+                <div class="stat-item" style="border-left:4px solid var(--bg-forest);">
+                  <div>
+                    <strong>1. 이원화된 도서관 생태계 (Dual Ecosystem)</strong>
+                    <div style="font-size:0.76rem; color:var(--text-muted);">성인 단행본(31%, 62권)과 아동 다권본 시리즈(66%, 132권)는 완전히 다른 메커니즘으로 움직입니다.</div>
+                  </div>
+                </div>
+                <div class="stat-item" style="border-left:4px solid var(--accent-burgundy);">
+                  <div>
+                    <strong>2. 최상위권의 극적인 대비 (1~8위 vs 9~19위)</strong>
+                    <div style="font-size:0.76rem; color:var(--text-muted);">1~8위는 한강·김애란·성해나 등 한국 현대소설이 독점하고, 9~19위는 『흔한남매』가 줄세우기를 기록했습니다.</div>
+                  </div>
+                </div>
+                <div class="stat-item" style="border-left:4px solid var(--accent-gold);">
+                  <div>
+                    <strong>3. KDC 주제 분류의 착시 규명</strong>
+                    <div style="font-size:0.76rem; color:var(--text-muted);">자연과학(400) 54권 중 53권(98.1%), 역사(900) 9권 중 8권(88.9%)이 실제로는 어린이 학습만화입니다.</div>
+                  </div>
+                </div>
+                <div class="stat-item" style="border-left:4px solid var(--accent-teal);">
+                  <div>
+                    <strong>4. 성인 독자의 독서 키워드: ‘한국문학·노후자산·내면철학’</strong>
+                    <div style="font-size:0.76rem; color:var(--text-muted);">한국소설의 르네상스 속에서 연금/저소비(경제)와 니체/쇼펜하우어/렛뎀이론(철학)이 비문학을 견인합니다.</div>
+                  </div>
+                </div>
+                <div class="stat-item" style="border-left:4px solid #6B7280;">
+                  <div>
+                    <strong>5. 서지 메타데이터 문해력 (시리즈 초판 연도 매핑)</strong>
+                    <div style="font-size:0.76rem; color:var(--text-muted);">다권본 시리즈의 출판년도가 1권 발행년도(2019~2020)로 일괄 집계되는 데이터 특성을 발라내어 해석해야 합니다.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Interactive Data Explorer -->
+          <div class="col-7 card card-gold-top">
+            <div class="card-title">
+              <span>🔎 2026 국립중앙도서관 인기대출 TOP 200 전체 검색기</span>
+              <span class="badge badge-gold" id="explorerCountBadge">표시 도서: 200권</span>
+            </div>
+
+            <div class="explorer-toolbar">
+              <input type="text" id="searchInput" class="search-input" placeholder="서명, 저자(예: 한강, 흔한남매, 김애란), 출판사 검색..." oninput="filterBooksTable()" />
+              <div class="pill-group" id="segmentFilterGroup">
+                <button class="pill-btn active" onclick="setSegmentFilter('ALL', this)">전체 (200)</button>
+                <button class="pill-btn" onclick="setSegmentFilter('일반성인(교양)', this)">성인 (62)</button>
+                <button class="pill-btn" onclick="setSegmentFilter('아동/초등', this)">아동 (132)</button>
+                <button class="pill-btn" onclick="setSegmentFilter('청소년', this)">청소년 (6)</button>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="archival-table">
+                <thead>
+                  <tr>
+                    <th style="width:52px;">순위</th>
+                    <th>서명 (권차)</th>
+                    <th style="width:110px;">저자</th>
+                    <th style="width:95px;">출판사</th>
+                    <th style="width:58px;">출판년</th>
+                    <th style="width:92px;">세그먼트</th>
+                    <th style="width:82px; text-align:right;">대출건수</th>
+                  </tr>
+                </thead>
+                <tbody id="booksTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="footer-hint">
+    ⌨️ 키보드 <strong>← / → / Space</strong> 또는 상단 번호를 클릭해 슬라이드를 이동하세요
+  </div>
+
+  <script>
+    // ==================== STATE & NAVIGATION ====================
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const totalSlides = slides.length;
+    let currentSlide = 0;
+    const chartInstances = {};
+
+    // Build top navigation dots
+    const dotsContainer = document.getElementById('slideDots');
+    for (let i = 0; i < totalSlides; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'slide-dot' + (i === 0 ? ' active' : '');
+      btn.textContent = String(i + 1).padStart(2, '0');
+      btn.onclick = () => goToSlide(i);
+      dotsContainer.appendChild(btn);
+    }
+
+    function updateNavUI() {
+      document.querySelectorAll('.slide-dot').forEach((d, idx) => {
+        d.classList.toggle('active', idx === currentSlide);
+      });
+      document.getElementById('slideCounter').textContent =
+        `${String(currentSlide + 1).padStart(2, '0')} / ${String(totalSlides).padStart(2, '0')}`;
+      document.getElementById('progressFill').style.width =
+        `${((currentSlide + 1) / totalSlides) * 100}%`;
+    }
+
+    function goToSlide(index) {
+      if (index < 0 || index >= totalSlides) return;
+      slides[currentSlide].classList.remove('active');
+      currentSlide = index;
+      slides[currentSlide].classList.add('active');
+      updateNavUI();
+      triggerSlideAnimations(currentSlide);
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides - 1) goToSlide(currentSlide + 1);
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) goToSlide(currentSlide - 1);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevSlide();
+      }
+    });
+
+    // ==================== COUNT-UP ANIMATION ====================
+    function animateCountUp(el) {
+      const target = parseFloat(el.getAttribute('data-count'));
+      const suffix = el.getAttribute('data-suffix') || '';
+      const isFloat = target % 1 !== 0;
+      const duration = 1100;
+      const startTime = performance.now();
+
+      function tick(now) {
+        const progress = Math.min((now - startTime) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = target * eased;
+        if (isFloat) {
+          el.textContent = current.toFixed(1) + suffix;
+        } else {
+          el.textContent = Math.round(current).toLocaleString('ko-KR') + suffix;
+        }
+        if (progress < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+
+    // ==================== BUILD TOP 20 BOOKSHELF (SLIDE 4) ====================
+    function renderTop20Bookshelf() {
+      const books = (window.BOOKS_DATA || []).slice(0, 20);
+      const shelf1 = document.getElementById('shelfTop10');
+      const shelf2 = document.getElementById('shelfNext10');
+      if (!shelf1 || !shelf2 || shelf1.children.length > 0) return;
+
+      books.forEach((b, idx) => {
+        const isAdult = b.segment.includes('성인');
+        const div = document.createElement('div');
+        div.className = 'book-spine ' + (isAdult ? 'adult-lit' : 'child-comic');
+        const shortTitle = b.title.split(':')[0].trim() + (b.vol ? ` (${b.vol})` : '');
+        div.innerHTML = `
+          <div class="spine-rank">#${b.rank}</div>
+          <div class="spine-title">${shortTitle}</div>
+          <div class="spine-meta">${b.author}<br/><strong>${b.loans.toLocaleString()}건</strong></div>
+        `;
+        div.title = `[${b.rank}위] ${b.title} (${b.author}, ${b.publisher}, ${b.year}) - 대출: ${b.loans.toLocaleString()}건`;
+        if (idx < 10) shelf1.appendChild(div);
+        else shelf2.appendChild(div);
+      });
+    }
+
+    // ==================== ECHARTS INITIALIZERS ====================
+    const fontCommon = { fontFamily: 'Pretendard, sans-serif' };
+
+    function initSlide2Chart() {
+      const dom = document.getElementById('chartLongTail');
+      if (!dom) return;
+      if (chartInstances.slide2) chartInstances.slide2.dispose();
+      const chart = echarts.init(dom);
+      chartInstances.slide2 = chart;
+
+      const books = window.BOOKS_DATA || [];
+      const xData = books.map(b => `${b.rank}위`);
+      const yData = books.map(b => ({
+        value: b.loans,
+        book: b,
+        itemStyle: {
+          color: b.segment.includes('성인') ? '#163326' : (b.segment.includes('아동') ? '#8B261D' : '#C28B28')
+        }
+      }));
+
+      chart.setOption({
+        textStyle: fontCommon,
+        AnimationDuration: 1400,
+        AnimationEasing: 'cubicOut',
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: 'rgba(22, 51, 38, 0.95)',
+          borderColor: '#D4B475',
+          textStyle: { color: '#FFFDF9', fontSize: 12 },
+          formatter: (params) => {
+            const b = params[0].data.book;
+            return `
+              <div style="font-weight:700; color:#F4C867; margin-bottom:4px;">[${b.rank}위] ${b.title} ${b.vol ? b.vol + '권' : ''}</div>
+              <div>저자: ${b.author} | 출판사: ${b.publisher} (${b.year})</div>
+              <div>독자대상: <strong>${b.segment}</strong> | KDC: ${b.kdc_main}</div>
+              <div style="margin-top:4px; font-size:13px;">대출건수: <strong style="color:#F4C867;">${b.loans.toLocaleString()}건</strong></div>
+            `;
+          }
+        },
+        grid: { left: 55, right: 24, top: 32, bottom: 36 },
+        xAxis: {
+          type: 'category',
+          data: xData,
+          axisLabel: { interval: 19, color: '#5C5549', fontSize: 11 },
+          axisLine: { lineStyle: { color: '#DCD3C2' } }
+        },
+        yAxis: {
+          type: 'value',
+          min: 10000,
+          name: '대출건수(건)',
+          nameTextStyle: { color: '#5C5549', fontSize: 11 },
+          axisLabel: { color: '#5C5549', formatter: v => (v / 10000).toFixed(1) + '만' },
+          splitLine: { lineStyle: { color: '#EAE3D2', type: 'dashed' } }
+        },
+        series: [{
+          name: '대출건수',
+          type: 'bar',
+          barWidth: '75%',
+          data: yData,
+          markLine: {
+            symbol: 'none',
+            label: { formatter: '{b}: {c}건', fontSize: 11, fontWeight: 600 },
+            lineStyle: { type: 'dashed', width: 1.5 },
+            data: [
+              { yAxis: 14982, name: '평균', lineStyle: { color: '#163326' }, label: { color: '#163326', position: 'insideEndTop' } },
+              { yAxis: 13825, name: '중앙값', lineStyle: { color: '#C28B28' }, label: { color: '#8A5D0B', position: 'insideMiddleTop' } }
+            ]
+          }
+        }]
+      });
+    }
+
+    function initSlide3Chart() {
+      const dom = document.getElementById('chartDualDonut');
+      if (!dom) return;
+      if (chartInstances.slide3) chartInstances.slide3.dispose();
+      const chart = echarts.init(dom);
+      chartInstances.slide3 = chart;
+
+      chart.setOption({
+        textStyle: fontCommon,
+        animationDuration: 1200,
+        tooltip: {
+          trigger: 'item',
+          formatter: '{b}<br/>대출합계: <strong>{c}건 ({d}%)</strong>'
+        },
+        legend: {
+          bottom: 0,
+          textStyle: { color: '#1C1A17', fontSize: 11, fontWeight: 600 }
+        },
+        series: [{
+          name: '독자 세그먼트별 대출 비중',
+          type: 'pie',
+          radius: ['42%', '72%'],
+          center: ['50%', '44%'],
+          itemStyle: { borderRadius: 6, borderColor: '#FFFDF9', borderWidth: 2 },
+          label: {
+            show: true,
+            formatter: '{b}\n{d}%',
+            fontWeight: 700,
+            fontSize: 11,
+            color: '#1C1A17'
+          },
+          data: [
+            { value: 1926631, name: '아동/초등 (132권)', itemStyle: { color: '#8B261D' } },
+            { value: 987580, name: '일반성인 교양 (62권)', itemStyle: { color: '#163326' } },
+            { value: 82129, name: '청소년 (6권)', itemStyle: { color: '#C28B28' } }
+          ]
+        }]
+      });
+    }
+
+    function initSlide4Chart() {
+      const dom = document.getElementById('chartTop20Bar');
+      if (!dom) return;
+      if (chartInstances.slide4) chartInstances.slide4.dispose();
+      const chart = echarts.init(dom);
+      chartInstances.slide4 = chart;
+
+      const top20 = (window.BOOKS_DATA || []).slice(0, 20);
+      chart.setOption({
+        textStyle: fontCommon,
+        animationDuration: 1200,
+        tooltip: {
+          trigger: 'axis',
+          formatter: (p) => {
+            const b = p[0].data.book;
+            return `<strong>#${b.rank} ${b.title}</strong> (${b.author})<br/>대출건수: <strong>${b.loans.toLocaleString()}건</strong>`;
+          }
+        },
+        grid: { left: 48, right: 16, top: 18, bottom: 42 },
+        xAxis: {
+          type: 'category',
+          data: top20.map(b => `#${b.rank} ${b.title.split(':')[0].trim().slice(0, 5)}`),
+          axisLabel: { rotate: 30, fontSize: 10, color: '#5C5549', interval: 0 }
+        },
+        yAxis: {
+          type: 'value',
+          min: 15000,
+          axisLabel: { fontSize: 10, formatter: v => (v / 1000).toFixed(0) + 'k' },
+          splitLine: { lineStyle: { color: '#EAE3D2', type: 'dashed' } }
+        },
+        series: [{
+          type: 'bar',
+          barWidth: '62%',
+          data: top20.map(b => ({
+            value: b.loans,
+            book: b,
+            itemStyle: {
+              color: b.segment.includes('성인') ? '#163326' : '#8B261D',
+              borderRadius: [4, 4, 0, 0]
+            }
+          }))
+        }]
+      });
+    }
+
+    let currentKdcMode = 'split';
+    function switchKdcView(mode) {
+      currentKdcMode = mode;
+      document.getElementById('btnKdcSplit').classList.toggle('active', mode === 'split');
+      document.getElementById('btnKdcSurface').classList.toggle('active', mode === 'surface');
+      initSlide5Chart();
+    }
+
+    function initSlide5Chart() {
+      const dom = document.getElementById('chartKdcIllusion');
+      if (!dom) return;
+      if (!chartInstances.slide5) {
+        chartInstances.slide5 = echarts.init(dom);
+      }
+      const chart = chartInstances.slide5;
+
+      const categories = [
+        '800 문학 (113권)',
+        '400 자연과학 (54권)',
+        '300 사회과학 (9권)',
+        '900 역사 (9권)',
+        '미분류 (5권)',
+        '600 예술 (5권)',
+        '100 철학 (4권)',
+        '500 기술과학 (1권)'
+      ].reverse();
+
+      const adultLoans = [807040, 11967, 70070, 11728, 19959, 0, 54544, 12272].reverse();
+      const childLoans = [936605, 731730, 51478, 95816, 50911, 60091, 0, 0].reverse();
+      const teenLoans  = [82129, 0, 0, 0, 0, 0, 0, 0].reverse();
+      const totalLoans = [1825774, 743697, 121548, 107544, 70870, 60091, 54544, 12272].reverse();
+
+      if (currentKdcMode === 'surface') {
+        chart.setOption({
+          textStyle: fontCommon,
+          animationDurationUpdate: 800,
+          tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+          legend: { top: 0, data: ['표면적 KDC 대출합계 (독자 구분 없음)'] },
+          grid: { left: 125, right: 40, top: 36, bottom: 28 },
+          xAxis: {
+            type: 'value',
+            axisLabel: { formatter: v => (v / 10000).toFixed(0) + '만' },
+            splitLine: { lineStyle: { color: '#EAE3D2', type: 'dashed' } }
+          },
+          yAxis: { type: 'category', data: categories, axisLabel: { fontWeight: 600, color: '#1C1A17' } },
+          series: [{
+            name: '표면적 KDC 대출합계 (독자 구분 없음)',
+            type: 'bar',
+            barWidth: '58%',
+            data: totalLoans,
+            itemStyle: { color: '#246A73', borderRadius: [0, 6, 6, 0] },
+            label: { show: true, position: 'right', formatter: p => (p.value / 10000).toFixed(1) + '만 건', fontWeight: 700 }
+          }]
+        }, true);
+      } else {
+        chart.setOption({
+          textStyle: fontCommon,
+          animationDurationUpdate: 800,
+          tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+            formatter: (params) => {
+              let html = `<div style="font-weight:700; margin-bottom:4px;">${params[0].name}</div>`;
+              params.forEach(p => {
+                if (p.value > 0) {
+                  html += `<div>${p.marker} ${p.seriesName}: <strong>${p.value.toLocaleString()}건</strong></div>`;
+                }
+              });
+              return html;
+            }
+          },
+          legend: {
+            top: 0,
+            data: ['일반성인 교양', '아동/초등 (학습만화·동화)', '청소년'],
+            textStyle: { fontWeight: 600 }
+          },
+          grid: { left: 125, right: 35, top: 36, bottom: 28 },
+          xAxis: {
+            type: 'value',
+            axisLabel: { formatter: v => (v / 10000).toFixed(0) + '만' },
+            splitLine: { lineStyle: { color: '#EAE3D2', type: 'dashed' } }
+          },
+          yAxis: { type: 'category', data: categories, axisLabel: { fontWeight: 600, color: '#1C1A17' } },
+          series: [
+            {
+              name: '일반성인 교양',
+              type: 'bar',
+              stack: 'kdc',
+              barWidth: '58%',
+              itemStyle: { color: '#163326' },
+              data: adultLoans
+            },
+            {
+              name: '아동/초등 (학습만화·동화)',
+              type: 'bar',
+              stack: 'kdc',
+              itemStyle: { color: '#8B261D' },
+              data: childLoans
+            },
+            {
+              name: '청소년',
+              type: 'bar',
+              stack: 'kdc',
+              itemStyle: { color: '#C28B28', borderRadius: [0, 5, 5, 0] },
+              data: teenLoans
+            }
+          ]
+        }, true);
+      }
+    }
+
+    function initSlide6Chart() {
+      const dom = document.getElementById('chartChildTreemap');
+      if (!dom) return;
+      if (chartInstances.slide6) chartInstances.slide6.dispose();
+      const chart = echarts.init(dom);
+      chartInstances.slide6 = chart;
+
+      chart.setOption({
+        textStyle: fontCommon,
+        animationDuration: 1200,
+        tooltip: {
+          formatter: (info) => {
+            return `<strong>${info.name}</strong><br/>누적 대출건수: <strong>${info.value.toLocaleString()}건</strong>`;
+          }
+        },
+        series: [{
+          name: '아동/초등 대출 생태계',
+          type: 'treemap',
+          roam: false,
+          nodeClick: false,
+          breadcrumb: { show: false },
+          label: { show: true, formatter: '{b}\n{c}건', fontSize: 12, fontWeight: 700 },
+          itemStyle: { borderColor: '#FFFDF9', borderWidth: 2, gapWidth: 2 },
+          data: [
+            {
+              name: '유튜브/미디어 크리에이터 IP (107권)',
+              itemStyle: { color: '#8B261D' },
+              children: [
+                { name: '흔한남매 본편 (21권)', value: 420357, itemStyle: { color: '#7C1D15' } },
+                { name: '흔한남매 과학탐험대 (17권)', value: 234999, itemStyle: { color: '#94291E' } },
+                { name: '흔한남매의 흔한 호기심 (13권)', value: 210060, itemStyle: { color: '#A83327' } },
+                { name: '흔한남매 고전읽기 (7권)', value: 104708, itemStyle: { color: '#B84336' } },
+                { name: '흔한남매 방탈출·수수께끼·세계여행 외 (20권)', value: 251495, itemStyle: { color: '#C45345' } },
+                { name: '에그박사 1~17 (16권)', value: 199408, itemStyle: { color: '#B86B19' } },
+                { name: '슈뻘맨의 숨은 과학 찾기 (6권)', value: 78331, itemStyle: { color: '#C87D28' } },
+                { name: '설민석 한국사 대모험 (4권)', value: 47754, itemStyle: { color: '#D4903B' } },
+                { name: '빨간내복야코 과학책 (3권)', value: 35663, itemStyle: { color: '#DF9F4F' } }
+              ]
+            },
+            {
+              name: '비-유튜브 한국 창작동화/그림책 (25권)',
+              itemStyle: { color: '#163326' },
+              children: [
+                { name: '고양이 해결사 깜냥 1~8 (8권)', value: 120238, itemStyle: { color: '#163326' } },
+                { name: '똥볶이 할멈 1~7 (7권)', value: 90805, itemStyle: { color: '#204836' } },
+                { name: '다판다 편의점 1~2 (2권)', value: 27623, itemStyle: { color: '#2B5E47' } },
+                { name: '놓지 마 과학! (2권)', value: 24180, itemStyle: { color: '#377358' } },
+                { name: '긴긴밤·수박수영장·너구리라면가게 외 (6권)', value: 81010, itemStyle: { color: '#45896B' } }
+              ]
+            }
+          ]
+        }]
+      });
+    }
+
+    function initSlide7Chart() {
+      const dom = document.getElementById('chartAdultAuthors');
+      if (!dom) return;
+      if (chartInstances.slide7) chartInstances.slide7.dispose();
+      const chart = echarts.init(dom);
+      chartInstances.slide7 = chart;
+
+      const authors = [
+        { name: '한강 (4권 · 최고 1위)', loans: 91550, desc: '소년이 온다, 작별하지 않는다, 채식주의자(2종)' },
+        { name: '이꽃님 (6권 · 최다 진입)', loans: 76343, desc: '죽이고 싶은 아이 1·2, 세계를 건너 너에게 갈게 외 3종' },
+        { name: '김애란 (3권 · 최고 2위)', loans: 67128, desc: '안녕이라 그랬어, 이중 하나는 거짓말, 바깥은 여름' },
+        { name: '김호연 (3권 · 최고 6위)', loans: 54911, desc: '불편한 편의점 1·2, 나의 돈키호테' },
+        { name: '히가시노 게이고 (3권)', loans: 43690, desc: '가공범, 나미야 잡화점의 기적, 장미와 나이프' },
+        { name: '성해나 (2권 · 최고 3위)', loans: 41495, desc: '혼모노, 두고 온 여름' },
+        { name: '양귀자 (2권 · 최고 4위)', loans: 38715, desc: '모순, 나는 소망한다 내게 금지된 것을' },
+        { name: '김금희 (2권 · 최고 60위)', loans: 29550, desc: '첫 여름 완주, 대온실 수리 보고서' },
+        { name: '정유정 (2권 · 최고 108위)', loans: 25417, desc: '종의 기원, 완전한 행복' },
+        { name: '김초엽 (2권 · 최고 126위)', loans: 24650, desc: '지구 끝의 온실, 우리가 빛의 속도로 갈 수 없다면' }
+      ].reverse();
+
+      chart.setOption({
+        textStyle: fontCommon,
+        animationDuration: 1200,
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: 'shadow' },
+          formatter: (p) => {
+            const d = p[0].data;
+            return `<strong>${d.name}</strong><br/>총 대출합계: <strong>${d.value.toLocaleString()}건</strong><br/>대표 진입작: ${d.desc}`;
+          }
+        },
+        grid: { left: 150, right: 45, top: 14, bottom: 24 },
+        xAxis: {
+          type: 'value',
+          axisLabel: { formatter: v => (v / 10000).toFixed(1) + '만' },
+          splitLine: { lineStyle: { color: '#EAE3D2', type: 'dashed' } }
+        },
+        yAxis: {
+          type: 'category',
+          data: authors.map(a => a.name),
+          axisLabel: { fontWeight: 600, color: '#1C1A17', fontSize: 11 }
+        },
+        series: [{
+          type: 'bar',
+          barWidth: '62%',
+          data: authors.map((a, i) => ({
+            value: a.loans,
+            name: a.name,
+            desc: a.desc,
+            itemStyle: {
+              color: i >= 7 ? '#163326' : '#2E5A44',
+              borderRadius: [0, 6, 6, 0]
+            }
+          })),
+          label: {
+            show: true,
+            position: 'right',
+            formatter: p => p.value.toLocaleString() + '건',
+            fontWeight: 700,
+            fontSize: 11,
+            color: '#163326'
+          }
+        }]
+      });
+    }
+
+    function initSlide8Chart() {
+      const dom = document.getElementById('chartYearVintage');
+      if (!dom) return;
+      if (chartInstances.slide8) chartInstances.slide8.dispose();
+      const chart = echarts.init(dom);
+      chartInstances.slide8 = chart;
+
+      const years = ['2007~2015', '2016~2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026'];
+      // Exact book counts by vintage & segment
+      const adultCounts = [4, 4, 3, 4, 10, 7, 4, 4, 21, 1];
+      const childCounts = [1, 4, 22, 43, 22, 17, 12, 8, 3, 0];
+      const teenCounts  = [0, 0, 0, 0, 2, 1, 3, 0, 1, 0];
+
+      chart.setOption({
+        textStyle: fontCommon,
+        animationDuration: 1200,
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        legend: { top: 0, data: ['일반성인 교양 (권)', '아동/초등 (권)', '청소년 (권)'] },
+        grid: { left: 45, right: 20, top: 38, bottom: 32 },
+        xAxis: {
+          type: 'category',
+          data: years,
+          axisLabel: { fontWeight: 600, color: '#1C1A17', fontSize: 11 }
+        },
+        yAxis: {
+          type: 'value',
+          name: '진입 도서 수(권)',
+          splitLine: { lineStyle: { color: '#EAE3D2', type: 'dashed' } }
+        },
+        series: [
+          {
+            name: '일반성인 교양 (권)',
+            type: 'bar',
+            stack: 'yr',
+            data: adultCounts,
+            itemStyle: { color: '#163326' }
+          },
+          {
+            name: '아동/초등 (권)',
+            type: 'bar',
+            stack: 'yr',
+            data: childCounts,
+            itemStyle: { color: '#8B261D' }
+          },
+          {
+            name: '청소년 (권)',
+            type: 'bar',
+            stack: 'yr',
+            data: teenCounts,
+            itemStyle: { color: '#C28B28', borderRadius: [4, 4, 0, 0] }
+          }
+        ]
+      });
+    }
+
+    function initSlide9Chart() {
+      const dom = document.getElementById('chartPublishers');
+      if (!dom) return;
+      if (chartInstances.slide9) chartInstances.slide9.dispose();
+      const chart = echarts.init(dom);
+      chartInstances.slide9 = chart;
+
+      const pubs = [
+        { name: '미래엔 (82권)', total: 1252859, avg: 15279 },
+        { name: '창비 (18권)', total: 296912, avg: 16495 },
+        { name: '김영사+주니어 (18권)', total: 246499, avg: 13694 },
+        { name: '문학동네 (12권)', total: 220055, avg: 18338 },
+        { name: '따끈따끈책방 (7권)', total: 90805, avg: 12972 },
+        { name: '위즈덤하우스 (7권)', total: 85614, avg: 12231 },
+        { name: '다산북스 (5권)', total: 67610, avg: 13522 },
+        { name: '나무옆의자 (3권)', total: 54911, avg: 18304 },
+        { name: '우리학교 (4권)', total: 51436, avg: 12859 },
+        { name: '쓰다 (2권)', total: 38715, avg: 19358 }
+      ];
+
+      chart.setOption({
+        textStyle: fontCommon,
+        animationDuration: 1200,
+        tooltip: { trigger: 'axis' },
+        legend: { top: 0, data: ['총 대출건수 (좌측 축)', '권당 평균 대출건수 (우측 축)'] },
+        grid: { left: 55, right: 55, top: 38, bottom: 52 },
+        xAxis: {
+          type: 'category',
+          data: pubs.map(p => p.name),
+          axisLabel: { rotate: 22, fontSize: 10, fontWeight: 600, color: '#1C1A17', interval: 0 }
+        },
+        yAxis: [
+          {
+            type: 'value',
+            name: '총 대출합계',
+            axisLabel: { formatter: v => (v / 10000).toFixed(0) + '만' },
+            splitLine: { lineStyle: { color: '#EAE3D2', type: 'dashed' } }
+          },
+          {
+            type: 'value',
+            name: '권당 평균',
+            min: 10000,
+            max: 21000,
+            axisLabel: { formatter: v => (v / 1000).toFixed(0) + 'k' },
+            splitLine: { show: false }
+          }
+        ],
+        series: [
+          {
+            name: '총 대출건수 (좌측 축)',
+            type: 'bar',
+            barWidth: '48%',
+            data: pubs.map((p, idx) => ({
+              value: p.total,
+              itemStyle: {
+                color: idx === 0 ? '#8B261D' : '#163326',
+                borderRadius: [5, 5, 0, 0]
+              }
+            }))
+          },
+          {
+            name: '권당 평균 대출건수 (우측 축)',
+            type: 'line',
+            yAxisIndex: 1,
+            symbolSize: 9,
+            itemStyle: { color: '#C28B28' },
+            lineStyle: { width: 3, color: '#C28B28' },
+            data: pubs.map(p => p.avg)
+          }
+        ]
+      });
+    }
+
+    // ==================== SLIDE 10 INTERACTIVE TABLE ====================
+    let activeSegmentFilter = 'ALL';
+
+    function setSegmentFilter(seg, btnEl) {
+      activeSegmentFilter = seg;
+      document.querySelectorAll('#segmentFilterGroup .pill-btn').forEach(b => b.classList.remove('active'));
+      if (btnEl) btnEl.classList.add('active');
+      filterBooksTable();
+    }
+
+    function filterBooksTable() {
+      const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+      const books = window.BOOKS_DATA || [];
+      const filtered = books.filter(b => {
+        const matchSeg = activeSegmentFilter === 'ALL' || b.segment === activeSegmentFilter;
+        const matchQuery = !q ||
+          b.title.toLowerCase().includes(q) ||
+          b.author.toLowerCase().includes(q) ||
+          b.author_full.toLowerCase().includes(q) ||
+          b.publisher.toLowerCase().includes(q) ||
+          b.kdc_main.toLowerCase().includes(q);
+        return matchSeg && matchQuery;
+      });
+
+      const tbody = document.getElementById('booksTableBody');
+      const countBadge = document.getElementById('explorerCountBadge');
+      if (countBadge) countBadge.textContent = `표시 도서: ${filtered.length}권`;
+      if (!tbody) return;
+
+      tbody.innerHTML = filtered.map(b => {
+        let segBadgeClass = 'badge-forest';
+        if (b.segment.includes('아동')) segBadgeClass = 'badge-burgundy';
+        else if (b.segment.includes('청소년')) segBadgeClass = 'badge-gold';
+
+        return `
+          <tr>
+            <td style="font-family:var(--font-mono); font-weight:700; color:var(--bg-forest);">#${b.rank}</td>
+            <td style="font-weight:600;">${b.title} ${b.vol ? `<span style="color:var(--accent-burgundy); font-weight:700;">[${b.vol}권]</span>` : ''}</td>
+            <td>${b.author}</td>
+            <td>${b.publisher}</td>
+            <td style="font-family:var(--font-mono);">${b.year}</td>
+            <td><span class="badge ${segBadgeClass}">${b.segment}</span></td>
+            <td style="text-align:right; font-family:var(--font-mono); font-weight:700;">${b.loans.toLocaleString()}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // ==================== TRIGGER ANIMATIONS PER SLIDE ====================
+    function triggerSlideAnimations(idx) {
+      const activeSlideEl = slides[idx];
+      activeSlideEl.querySelectorAll('[data-count]').forEach(el => animateCountUp(el));
+
+      setTimeout(() => {
+        if (idx === 1) initSlide2Chart();
+        if (idx === 2) initSlide3Chart();
+        if (idx === 3) {
+          renderTop20Bookshelf();
+          initSlide4Chart();
+        }
+        if (idx === 4) initSlide5Chart();
+        if (idx === 5) initSlide6Chart();
+        if (idx === 6) initSlide7Chart();
+        if (idx === 7) initSlide8Chart();
+        if (idx === 8) initSlide9Chart();
+        if (idx === 9) filterBooksTable();
+      }, 120);
+    }
+
+    window.addEventListener('resize', () => {
+      Object.values(chartInstances).forEach(c => c && c.resize());
+    });
+
+    // Initial boot
+    window.addEventListener('DOMContentLoaded', () => {
+      renderTop20Bookshelf();
+      filterBooksTable();
+    });
+  </script>
+</body>
+</html>
